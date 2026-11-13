@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traffic Light Negotiation & Perception-Based Detection</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%2300d2ff'/></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="logo-section">
+      <h1>
+        <span>🚦 Traffic Light Negotiation</span>
+        <span class="badge">PROJECT 223</span>
+      </h1>
+      <div class="sub-title">Perception-Based Detection & Autonomous Intersection Negotiation • MathWorks Challenge Hub</div>
+    </div>
+    <div class="system-status">
+      <div class="pulse-dot"></div>
+      <span id="connStatus">CONNECTED (30 FPS)</span>
+    </div>
+  </header>
+
+  <!-- Interactive Scenario Selector Bar -->
+  <div class="scenario-bar">
+    <span>Scenarios:</span>
+    <button class="scenario-btn active" data-scenario="baseline">🟢 1: Baseline Clear Approach</button>
+    <button class="scenario-btn" data-scenario="tree_occlusion">🌲 2: Tree-Obstructed Light</button>
+    <button class="scenario-btn" data-scenario="dilemma_zone">⚠️ 3: Dilemma Zone (Yellow)</button>
+    <button class="scenario-btn" data-scenario="lead_vehicle">🚗 4: Lead Vehicle Queue</button>
+    <button class="scenario-btn" data-scenario="dense_fog">🌧️ 5: Adverse Weather (Fog)</button>
+    <button class="scenario-btn" data-scenario="night_glare">🌙 6: Night Driving & Glare</button>
+  </div>
+
+  <!-- Main Grid Dashboard -->
+  <main class="main-layout">
+    
+    <!-- Left Column: Simulation & Kinematic Controls -->
+    <section class="left-col">
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <span>🚗 2.5D Intersection Simulation View</span>
+          </h2>
+          <div class="btn-group">
+            <span id="simPhaseIndicator" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan);">SIGNAL: GREEN (12.0s)</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="canvas-wrapper">
+            <canvas id="simCanvas" width="900" height="480"></canvas>
+            <div class="canvas-overlay-hud">
+              <div>Ego Pos: <strong id="hudEgoPos">0.0 m</strong></div>
+              <div>Stop Line: <strong>100.0 m</strong></div>
+              <div>Gap to Line: <strong id="hudGap">100.0 m</strong></div>
+              <div>Required Braking: <strong id="hudBrakeDist">19.5 m</strong></div>
+            </div>
+          </div>
+
+          <!-- Playback Controls -->
+          <div class="playback-bar">
+            <div class="btn-group">
+              <button id="btnPlay" class="ctrl-btn primary">⏸ Pause</button>
+              <button id="btnStep" class="ctrl-btn">⏭ Step</button>
+              <button id="btnReset" class="ctrl-btn">🔄 Reset</button>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label style="font-size: 0.8rem; color: var(--text-secondary);">Target Speed:</label>
+              <input type="range" id="speedSlider" min="20" max="60" value="40" style="width: 110px;">
+              <span id="speedVal" style="font-family: var(--font-mono); font-size: 0.85rem; width: 55px;">40 km/h</span>
+            </div>
+          </div>
+
+          <!-- Stateflow Decision Logic Visualizer -->
+          <div style="margin-top: 14px;">
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">STATEFLOW DECISION MACHINE:</div>
+            <div class="stateflow-container">
+              <div id="stateCruise" class="state-node active">CRUISE</div>
+              <div id="stateDecel" class="state-node">DECELERATE</div>
+              <div id="stateStop" class="state-node">STOPPED</div>
+              <div id="stateWait" class="state-node">WAITING</div>
+              <div id="stateProceed" class="state-node">PROCEED</div>
+              <div id="stateCreep" class="state-node">CREEP</div>
+            </div>
+
+            <div id="reasonBanner" class="reason-banner">
+              Scanning for intersection traffic signals. Cruising at 40 km/h.
+            </div>
+          </div>
+
+          <!-- Telemetry Gauges Grid -->
+          <div class="telemetry-grid">
+            <div class="telem-box">
+              <div class="label">Ego Velocity</div>
+              <div id="telemSpeed" class="val">40.0</div>
+              <div class="unit">km/h</div>
+            </div>
+            <div class="telem-box">
+              <div class="label">Acceleration</div>
+              <div id="telemAccel" class="val">0.00</div>
+              <div class="unit">m/s²</div>
+            </div>
+            <div class="telem-box">
+              <div class="label">Dist to Stop Line</div>
+              <div id="telemDistStop" class="val">100.0</div>
+              <div class="unit">meters</div>
+            </div>
+            <div class="telem-box">
+              <div class="label">Signal Phase</div>
+              <div id="telemSignalState" class="val" style="color: var(--accent-green);">GREEN</div>
+              <div id="telemSignalTimer" class="unit">12.0s left</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Perception HUD & Sensor Fusion -->
+    <section class="right-col">
+      <div class="card" style="margin-bottom: 18px;">
+        <div class="card-header">
+          <h2>
+            <span>📷 Onboard Windshield Perception Camera</span>
+          </h2>
+          <span id="perceptionStatusTag" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-green);">STATUS: LOCKED</span>
+        </div>
+
+        <div class="card-body">
+          <div class="camera-wrapper">
+            <canvas id="cameraCanvas" width="600" height="300"></canvas>
+            <div class="camera-tag">
+              <div class="rec-dot"></div>
+              <span>AI PERCEPTION CAM</span>
+            </div>
+          </div>
+
+          <!-- Sensor Fusion & Perception Output -->
+          <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--font-mono); font-size: 0.78rem;">
+            <div style="background: #0d1320; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="color: var(--text-secondary); font-size: 0.7rem;">VISION DETECTION</div>
+              <div id="visState">STATE: <strong>GREEN</strong></div>
+              <div id="visConf">CONF: <strong>96.0%</strong></div>
+              <div id="visEstDist">OPTICAL DIST: <strong>112.0m</strong></div>
+            </div>
+            <div style="background: #0d1320; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="color: var(--text-secondary); font-size: 0.7rem;">SENSOR FUSION (RADAR+CAM)</div>
+              <div id="fuseState">FUSED: <strong>GREEN</strong></div>
+              <div id="fuseConf">CONF: <strong>96.0%</strong></div>
+              <div id="fuseDist">RADAR RANGE: <strong>112.4m</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Environment & Signal Override Controls -->
+      <div class="card" style="margin-bottom: 18px;">
+        <div class="card-header">
+          <h2>
+            <span>⚙️ Environment & Perception Parameters</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="controls-grid">
+            <div class="control-item">
+              <label>Weather Condition:</label>
+              <select id="weatherSelect">
+                <option value="clear">☀️ Clear Day</option>
+                <option value="fog">🌧️ Dense Fog</option>
+                <option value="rain">🌧️ Heavy Rain</option>
+                <option value="night">🌙 Night Driving</option>
+              </select>
+            </div>
+            <div class="control-item">
+              <label>Tree Occlusion:</label>
+              <select id="occlusionSelect">
+                <option value="0.0">None (0%)</option>
+                <option value="0.4">Moderate (40%)</option>
+                <option value="0.75">Heavy (75%)</option>
+              </select>
+            </div>
+            <div class="control-item">
+              <label>Traffic Signal Mode:</label>
+              <select id="signalModeSelect">
+                <option value="AUTO">Auto Cycle</option>
+                <option value="RED">Force RED</option>
+                <option value="YELLOW">Force YELLOW</option>
+                <option value="GREEN">Force GREEN</option>
+              </select>
+            </div>
+            <div class="control-item">
+              <label>Lead Vehicle (Queue):</label>
+              <select id="leadCarSelect">
+                <option value="false">None</option>
+                <option value="true">Active Car Ahead</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quantitative Analysis & Performance Metrics -->
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <span>📊 Quantitative Performance Metrics</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <table class="metrics-table">
+            <tbody>
+              <tr>
+                <td>Perception Detection Accuracy</td>
+                <td class="val" id="metricAccuracy">98.4%</td>
+              </tr>
+              <tr>
+                <td>Stop Line Mean Error Margin</td>
+                <td class="val" id="metricStopErr">0.18 m</td>
+              </tr>
+              <tr>
+                <td>Comfort Deceleration Compliance</td>
+                <td class="val" id="metricComfort">100% (<3.5 m/s²)</td>
+              </tr>
+              <tr>
+                <td>Safety Collisions</td>
+                <td class="val" id="metricCollisions" style="color: var(--accent-green);">0 (Clean)</td>
+              </tr>
+              <tr>
+                <td>Total Successful Negotiation Stops</td>
+                <td class="val" id="metricStops">1</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
