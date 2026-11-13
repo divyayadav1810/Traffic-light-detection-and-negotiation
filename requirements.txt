@@ -1,0 +1,7 @@
+# Core runtime uses Python standard library (http.server, threading, json, math, urllib).
+# No external packages are strictly required to run the simulation and web dashboard.
+
+# Optional development & testing dependencies:
+pytest>=7.4.0
+requests>=2.31.0
+numpy>=1.24.0
